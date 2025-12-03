@@ -2,43 +2,71 @@ pipeline {
     agent any
 
     environment {
+        // Mark that we're running in CI so tests can behave differently if needed
         CI = "true"
-        API_BASE_URL = "https://httpbin.org"
-        UI_BASE_URL = "https://the-internet.herokuapp.com"
-        // COAP_HOST and COAP_PORT could be set to a running mock device
-        // COAP_HOST = "localhost"
-        // COAP_PORT = "5683"
+
+        // App / test config
+        API_BASE_URL = "https://example.com"
+        UI_BASE_URL  = "https://the-internet.herokuapp.com"
+        // ENABLE_UI_IN_CI = "true"   // uncomment if you later want UI tests to run in Jenkins
+    }
+
+    options {
+        timestamps()
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                // Optional: Jenkins already checked out the repo via "Pipeline from SCM"
-                checkout scm
-            }
-        }
-
         stage('Setup Python') {
             steps {
-                sh 'python3 -m venv venv'
-                sh '. venv/bin/activate && pip install --upgrade pip'
-                sh '. venv/bin/activate && pip install -r requirements.txt'
+                sh '''
+                    set -e
+
+                    # Create virtualenv
+                    python3 -m venv venv
+
+                    # Activate and install deps
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
             }
         }
 
         stage('Run Tests') {
             steps {
-                sh 'mkdir -p reports'
-                sh '. venv/bin/activate && pytest'
+                sh '''
+                    set -e
+
+                    . venv/bin/activate
+
+                    mkdir -p reports
+
+                    # Run pytest with JUnit + HTML reports
+                    pytest \
+                      --junitxml=reports/junit.xml \
+                      --html=reports/report.html \
+                      --self-contained-html
+                '''
             }
         }
     }
 
     post {
         always {
-            // Publish reports if plugins are installed
+            // Publish JUnit results to Jenkins "Tests" view
             junit 'reports/junit.xml'
-            archiveArtifacts artifacts: 'reports/*.html', fingerprint: true
+
+            // Archive all report files as build artifacts
+            archiveArtifacts artifacts: 'reports/*', fingerprint: true
+
+            // Pretty HTML link in the sidebar (requires HTML Publisher plugin)
+            publishHTML([
+                reportDir: 'reports',
+                reportFiles: 'report.html',
+                reportName: 'Pytest Report',
+                keepAll: true,
+                alwaysLinkToLastBuild: true
+            ])
         }
     }
 }
