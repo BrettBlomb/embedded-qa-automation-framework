@@ -1,7 +1,6 @@
-# tests/network/test_tcp_udp.py
-
 import socket
 import threading
+import time
 from framework.network_utils import tcp_handshake, send_udp_message
 
 def _udp_server(host: str, port: int, buffer: list):
@@ -15,7 +14,6 @@ def _udp_server(host: str, port: int, buffer: list):
 
 def test_tcp_handshake_succeeds_for_localhost():
     """Verify that TCP handshake can succeed for a listening localhost socket."""
-    # Start simple listening socket
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.bind(("127.0.0.1", 9200))
     server_sock.listen(1)
@@ -34,9 +32,10 @@ def test_udp_message_received_by_server():
 
     send_udp_message(host, port, b"hello_udp")
 
-    # crudely wait for message
-    for _ in range(10_000):
+    # Give the server a moment to receive
+    for _ in range(100):
         if buffer:
             break
+        time.sleep(0.01)
 
     assert buffer and buffer[0] == b"hello_udp"
