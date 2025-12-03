@@ -1,0 +1,8 @@
+pytest
+requests
+selenium
+pytest-html
+pytest-xdist
+aiocoap
+pyserial
+cryptography
