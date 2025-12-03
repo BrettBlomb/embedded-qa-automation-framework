@@ -36,12 +36,12 @@ pipeline {
                     # Start mock REST API on 8000
                     docker run -d --name mock-rest -p 8000:8000 \
                         -v "$WORKSPACE/mock_services/rest_api:/app" \
-                        python:3.10 bash -c "pip install flask && python /app/rest_server.py"
+                        python:3.10 bash -c "pip install flask && python /app/mock_rest_server.py"
 
                     # Start mock CoAP server on 5683
                     docker run -d --name mock-coap -p 5683:5683/udp \
                         -v "$WORKSPACE/mock_services/coap_server:/app" \
-                        python:3.10 bash -c "pip install aiocoap && python /app/coap_server.py"
+                        python:3.10 bash -c "pip install aiocoap && python /app/mock_coap_server.py"
 
                     # Start Selenium Chrome service on 4444
                     docker run -d --name selenium-standalone \
