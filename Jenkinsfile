@@ -4,14 +4,17 @@ pipeline {
     environment {
         CI = "true"
         API_BASE_URL = "https://httpbin.org"
-        UI_BASE_URL = "https://example.com"
-        # COAP_HOST and COAP_PORT could be set to a running mock device
+        UI_BASE_URL = "https://the-internet.herokuapp.com"
+        // COAP_HOST and COAP_PORT could be set to a running mock device
+        // COAP_HOST = "localhost"
+        // COAP_PORT = "5683"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/YOURNAME/embedded-qa-automation.git'
+                // Optional: Jenkins already checked out the repo via "Pipeline from SCM"
+                checkout scm
             }
         }
 
@@ -23,31 +26,7 @@ pipeline {
             }
         }
 
-        stage('Run API Tests') {
-            steps {
-                sh '. venv/bin/activate && pytest tests/api -v'
-            }
-        }
-
-        stage('Run UI Tests') {
-            steps {
-                sh '. venv/bin/activate && pytest tests/ui -v'
-            }
-        }
-
-        stage('Run Embedded & Network Tests') {
-            steps {
-                sh '. venv/bin/activate && pytest tests/embedded tests/network -v'
-            }
-        }
-
-        stage('Run Security Tests') {
-            steps {
-                sh '. venv/bin/activate && pytest tests/security -v'
-            }
-        }
-
-        stage('Full Suite with Reports') {
+        stage('Run Tests') {
             steps {
                 sh 'mkdir -p reports'
                 sh '. venv/bin/activate && pytest'
@@ -57,8 +36,9 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'reports/*.html', fingerprint: true
+            // Publish reports if plugins are installed
             junit 'reports/junit.xml'
+            archiveArtifacts artifacts: 'reports/*.html', fingerprint: true
         }
     }
 }
