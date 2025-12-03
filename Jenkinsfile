@@ -3,6 +3,11 @@ pipeline {
 
     environment {
         PYTHONUNBUFFERED = "1"
+        CI = "true"
+
+        # Remote selenium when running inside Jenkins
+        SELENIUM_REMOTE_URL = "http://127.0.0.1:4444/wd/hub"
+
         PATH = "$WORKSPACE/venv/bin:$PATH"
     }
 
@@ -28,32 +33,38 @@ pipeline {
         stage('Start Mock Services') {
             steps {
                 sh """
-                    # Kill old containers
                     docker rm -f selenium-standalone || true
                     docker rm -f mock-rest || true
                     docker rm -f mock-coap || true
 
-                    # Start mock REST API on 8000
+                    echo "Starting REST mock..."
                     docker run -d --name mock-rest -p 8000:8000 \
                         -v "$WORKSPACE/mock_services/rest_api:/app" \
                         python:3.10 bash -c "pip install flask && python /app/mock_rest_server.py"
 
-                    # Start mock CoAP server on 5683
+                    echo "Starting CoAP mock..."
                     docker run -d --name mock-coap -p 5683:5683/udp \
                         -v "$WORKSPACE/mock_services/coap_server:/app" \
                         python:3.10 bash -c "pip install aiocoap && python /app/mock_coap_server.py"
 
-                    # Start Selenium Chrome service on 4444
+                    echo "Starting Selenium Standalone Chrome..."
                     docker run -d --name selenium-standalone \
                         -p 4444:4444 \
                         --shm-size=2g \
                         selenium/standalone-chrome:latest
                 """
 
-                // Wait for Selenium Grid to be ready
+                // Wait for Selenium to be fully ready
                 sh """
-                    echo "Waiting for Selenium..."
-                    sleep 10
+                    echo 'Waiting for Selenium WebDriver...'
+                    for i in {1..20}; do
+                        if curl -s http://127.0.0.1:4444/wd/hub/status | grep -q '"ready":true'; then
+                            echo 'Selenium is ready!'
+                            break
+                        fi
+                        echo 'Still waiting...'
+                        sleep 2
+                    done
                 """
             }
         }
@@ -75,28 +86,29 @@ pipeline {
 
     post {
         always {
-            // Cleanup
+
+            // Kill all containers
             sh """
                 docker rm -f selenium-standalone || true
                 docker rm -f mock-rest || true
                 docker rm -f mock-coap || true
             """
 
-            // Publish test reports
+            // JUnit test results
             junit 'reports/junit.xml'
 
+            // Save all artifacts
             archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
 
-            publishHTML(
-                target: [
-                    allowMissing: true,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'reports',
-                    reportFiles: 'report.html',
-                    reportName: 'Test Report'
-                ]
-            )
+            // HTML test report in Jenkins UI
+            publishHTML(target: [
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'reports',
+                reportFiles: 'report.html',
+                reportName: 'Test Report'
+            ])
         }
     }
 }
