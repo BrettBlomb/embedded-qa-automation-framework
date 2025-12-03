@@ -4,10 +4,8 @@ pipeline {
     environment {
         CI = "true"
 
-        # Use local mock REST API
         API_BASE_URL = "http://localhost:8000/api"
 
-        # Selenium UI base URL
         UI_BASE_URL  = "https://the-internet.herokuapp.com"
     }
 
