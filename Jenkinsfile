@@ -59,13 +59,14 @@ pipeline {
             // Archive all report files as build artifacts
             archiveArtifacts artifacts: 'reports/*', fingerprint: true
 
-            // Pretty HTML link in the sidebar (requires HTML Publisher plugin)
-            publishHTML([
+            // Pretty HTML link in the sidebar (HTML Publisher plugin)
+            publishHTML(target: [
                 reportDir: 'reports',
                 reportFiles: 'report.html',
                 reportName: 'Pytest Report',
                 keepAll: true,
-                alwaysLinkToLastBuild: true
+                alwaysLinkToLastBuild: true,
+                allowMissing: false
             ])
         }
     }
