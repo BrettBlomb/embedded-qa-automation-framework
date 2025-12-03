@@ -3,25 +3,46 @@ pipeline {
 
     environment {
         CI = "true"
-        API_BASE_URL = "https://example.com"
+        API_BASE_URL = "http://localhost:8000/api"
         UI_BASE_URL  = "https://the-internet.herokuapp.com"
     }
 
-    options {
-        timestamps()
-    }
-
     stages {
+
         stage('Setup Python') {
             steps {
                 sh '''
-                    set -e
-
                     python3 -m venv venv
-
                     . venv/bin/activate
                     pip install --upgrade pip
                     pip install -r requirements.txt
+                    pip install flask aiocoap webdriver-manager
+                '''
+            }
+        }
+
+        stage('Start Mock Services') {
+            steps {
+                sh '''
+                    # Start REST server
+                    python3 mock_rest_server.py &
+                    # Start CoAP mock
+                    python3 mock_coap_server.py &
+
+                    sleep 3
+                '''
+            }
+        }
+
+        stage('Install Chrome for Selenium') {
+            steps {
+                sh '''
+                    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+                    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+                         > /etc/apt/sources.list.d/google-chrome.list
+
+                    apt-get update
+                    apt-get install -y google-chrome-stable xvfb
                 '''
             }
         }
@@ -29,16 +50,13 @@ pipeline {
         stage('Run Tests') {
             steps {
                 sh '''
-                    set -e
-
                     . venv/bin/activate
-
                     mkdir -p reports
 
                     pytest \
-                      --junitxml=reports/junit.xml \
-                      --html=reports/report.html \
-                      --self-contained-html
+                        --junitxml=reports/junit.xml \
+                        --html=reports/report.html \
+                        --self-contained-html
                 '''
             }
         }
@@ -46,21 +64,14 @@ pipeline {
 
     post {
         always {
-
-            // --- JUnit test page in Jenkins ---
             junit 'reports/junit.xml'
-
-            // --- Archive all files in reports/ folder ---
-            archiveArtifacts artifacts: 'reports/*', fingerprint: true
-
-            // --- Publish pretty HTML report ---
+            archiveArtifacts 'reports/*'
             publishHTML([
                 reportDir: 'reports',
                 reportFiles: 'report.html',
-                reportName: 'Pytest Report',
+                reportName: 'Test Report',
                 keepAll: true,
-                alwaysLinkToLastBuild: true,
-                allowMissing: false
+                alwaysLinkToLastBuild: true
             ])
         }
     }
