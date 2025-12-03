@@ -5,7 +5,6 @@ pipeline {
         PYTHONUNBUFFERED = "1"
         CI = "true"
 
-        # Remote selenium when running inside Jenkins
         SELENIUM_REMOTE_URL = "http://127.0.0.1:4444/wd/hub"
 
         PATH = "$WORKSPACE/venv/bin:$PATH"
