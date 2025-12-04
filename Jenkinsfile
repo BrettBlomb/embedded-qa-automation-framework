@@ -15,7 +15,7 @@ pipeline {
             }
         }
 
-        /* 🔍 NEW DEBUG STAGE — SHOW REAL WORKSPACE PATH */
+        /* 🔍 DEBUG: Shows the REAL Jenkins workspace path */
         stage('Find Actual Workspace Path') {
             steps {
                 sh """
@@ -53,14 +53,14 @@ pipeline {
                     docker run -d --name mock-rest \
                         --network coapnet \
                         -p 8000:8000 \
-                        -v "$WORKSPACE/mock_servers:/app" \
+                        -v "${env.WORKSPACE}/mock_servers:/app" \
                         python:3.10 bash -c "pip install flask && python /app/mock_rest_server.py"
 
                     echo 'Starting CoAP mock...'
                     docker run -d --name mock-coap \
                         --network coapnet \
                         -p 5683:5683/udp \
-                        -v "$WORKSPACE/mock_servers:/app" \
+                        -v "${env.WORKSPACE}/mock_servers:/app" \
                         python:3.10 bash -c "pip install aiocoap && python /app/mock_coap_server.py"
 
                     echo "Starting Selenium Standalone Chrome..."
@@ -85,6 +85,7 @@ pipeline {
             }
         }
 
+        /* ⭐ FIXED: Correct workspace mount using ${env.WORKSPACE} */
         stage('Run Tests Inside Docker') {
             steps {
                 sh """
@@ -95,7 +96,7 @@ pipeline {
                         -e COAP_HOST=mock-coap \
                         -e CI=true \
                         -e PYTHONUNBUFFERED=1 \
-                        -v "$WORKSPACE:/workspace" \
+                        -v "${env.WORKSPACE}:/workspace" \
                         -w /workspace \
                         python:3.10 bash -c "
                             echo 'Checking mounted workspace:' && ls -al /workspace && \
