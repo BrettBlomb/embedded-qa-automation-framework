@@ -81,13 +81,17 @@ pipeline {
         }
 
         stage('Debug Workspace') {
-            steps {
-                sh """
-                    echo "=== Workspace Structure ==="
-                    ls -R "$WORKSPACE"
-                """
-            }
-        }
+    steps {
+        sh """
+            echo '=== WORKSPACE ROOT CONTENTS ==='
+            ls -al "$WORKSPACE"
+
+            echo '=== FULL RECURSIVE STRUCTURE ==='
+            ls -R "$WORKSPACE"
+        """
+    }
+}
+
 
 
         stage('Run Tests Inside Docker') {
