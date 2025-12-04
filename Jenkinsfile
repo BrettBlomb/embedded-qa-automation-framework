@@ -32,19 +32,19 @@ pipeline {
         stage('Start Mock Services') {
             steps {
                 sh """
-                    # Cleanup old containers
+                    # Cleanup old containers if they exist
                     docker rm -f selenium-standalone || true
                     docker rm -f mock-rest || true
                     docker rm -f mock-coap || true
 
-                    # Create Docker bridge network (if not exists)
+                    # Create Docker bridge network (idempotent)
                     docker network create coapnet || true
 
                     echo "Starting REST mock..."
                     docker run -d --name mock-rest \
                         --network coapnet \
                         -p 8000:8000 \
-                        -v "${WORKSPACE}/mock_servers/rest_api:/app" \
+                        -v "${WORKSPACE}/mock_servers:/app" \
                         python:3.10 bash -c "pip install flask && python /app/mock_rest_server.py"
 
                     echo "Starting CoAP mock..."
@@ -54,7 +54,7 @@ pipeline {
                         -v "${WORKSPACE}/mock_servers:/app" \
                         python:3.10 bash -c "pip install aiocoap && python /app/mock_coap_server.py"
 
-                    echo "Starting Selenium Standalone Chrome..."
+                    echo 'Starting Selenium Standalone Chrome...'
                     docker run -d --name selenium-standalone \
                         --network coapnet \
                         -p 4444:4444 \
@@ -62,6 +62,7 @@ pipeline {
                         selenium/standalone-chrome:latest
                 """
 
+                // Wait for Selenium to be ready
                 sh """
                     echo 'Waiting for Selenium WebDriver...'
                     for i in {1..20}; do
@@ -73,6 +74,19 @@ pipeline {
                         sleep 2
                     done
                 """
+
+                // (Optional) Quick CoAP readiness check
+                sh """
+                    echo 'Waiting for CoAP mock server (UDP 5683)...'
+                    for i in {1..20}; do
+                        if docker exec mock-coap sh -c "netstat -anu | grep 5683" > /dev/null 2>&1; then
+                            echo 'CoAP server is ready!'
+                            break
+                        fi
+                        echo 'Still waiting for CoAP...'
+                        sleep 1
+                    done
+                """
             }
         }
 
@@ -82,14 +96,16 @@ pipeline {
                     docker run --rm \
                         --network coapnet \
                         -e COAP_HOST=mock-coap \
-                        -v "${WORKSPACE}:/workspace" \
+                        -e CI=true \
+                        -e PYTHONUNBUFFERED=1 \
+                        -v "${pwd()}:/workspace" \
                         -w /workspace \
                         python:3.10 bash -c "
-                            pip install --upgrade pip &&
-                            pip install -r /workspace/requirements.txt &&
-                            mkdir -p /workspace/reports &&
-                            pytest --junitxml=/workspace/reports/junit.xml \
-                                   --html=/workspace/reports/report.html \
+                            pip install --upgrade pip && \
+                            pip install -r requirements.txt && \
+                            mkdir -p reports && \
+                            pytest --junitxml=reports/junit.xml \
+                                   --html=reports/report.html \
                                    --self-contained-html \
                                    -v
                         "
@@ -100,12 +116,14 @@ pipeline {
 
     post {
         always {
+            // Clean up containers even on failure
             sh """
                 docker rm -f selenium-standalone || true
                 docker rm -f mock-rest || true
                 docker rm -f mock-coap || true
             """
 
+            // Collect test results (if they exist)
             junit 'reports/junit.xml'
 
             archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
