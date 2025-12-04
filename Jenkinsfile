@@ -1,5 +1,7 @@
 pipeline {
-    agent { label 'built-in' }
+    agent {
+        label 'built-in'
+    }
 
     environment {
         PYTHONUNBUFFERED = "1"
@@ -15,67 +17,36 @@ pipeline {
             }
         }
 
-        /* 🔍 DEBUG: Shows the REAL Jenkins workspace path */
-        stage('Find Actual Workspace Path') {
-            steps {
-                sh """
-                    echo '=== CURRENT JENKINS WORKSPACE ==='
-                    pwd
-
-                    echo '=== CONTENTS OF WORKSPACE ==='
-                    ls -al
-
-                    echo '=== FULL TREE (2 levels deep) ==='
-                    find . -maxdepth 2 -type f -print
-                """
-            }
-        }
-
-        stage('Setup Python') {
-            steps {
-                sh """
-                    set -e
-                    python3 -m venv venv
-                    venv/bin/pip install --upgrade pip setuptools wheel
-                    venv/bin/pip install -r requirements.txt
-                """
-            }
-        }
-
         stage('Start Mock Services') {
             steps {
                 sh """
+                    echo 'Stopping old containers...'
                     docker rm -f selenium-standalone || true
                     docker rm -f mock-rest || true
                     docker rm -f mock-coap || true
 
-                    echo "Starting REST mock..."
-                    docker run -d --name mock-rest \
-                        --network coapnet \
-                        -p 8000:8000 \
-                        -v "${env.WORKSPACE}/mock_servers:/app" \
+                    echo 'Starting REST mock server...'
+                    docker run -d --name mock-rest -p 8000:8000 \
+                        -v /var/jenkins_home/workspace/${JOB_NAME}/mock_servers:/app \
                         python:3.10 bash -c "pip install flask && python /app/mock_rest_server.py"
 
-                    echo 'Starting CoAP mock...'
-                    docker run -d --name mock-coap \
-                        --network coapnet \
-                        -p 5683:5683/udp \
-                        -v "${env.WORKSPACE}/mock_servers:/app" \
+                    echo 'Starting CoAP mock server...'
+                    docker run -d --name mock-coap -p 5683:5683/udp \
+                        -v /var/jenkins_home/workspace/${JOB_NAME}/mock_servers:/app \
                         python:3.10 bash -c "pip install aiocoap && python /app/mock_coap_server.py"
 
-                    echo "Starting Selenium Standalone Chrome..."
+                    echo 'Starting Selenium Standalone Chrome...'
                     docker run -d --name selenium-standalone \
-                        --network coapnet \
                         -p 4444:4444 \
                         --shm-size=2g \
                         selenium/standalone-chrome:latest
                 """
 
                 sh """
-                    echo 'Waiting for Selenium WebDriver...'
+                    echo 'Waiting for Selenium WebDriver to be ready...'
                     for i in {1..20}; do
                         if curl -s http://127.0.0.1:4444/wd/hub/status | grep -q '"ready":true'; then
-                            echo 'Selenium is ready!'
+                            echo 'Selenium WebDriver is ready!'
                             break
                         fi
                         echo 'Still waiting...'
@@ -85,7 +56,6 @@ pipeline {
             }
         }
 
-        /* ⭐ FIXED: Correct workspace mount using ${env.WORKSPACE} */
         stage('Run Tests Inside Docker') {
             steps {
                 sh """
@@ -93,18 +63,17 @@ pipeline {
 
                     docker run --rm \
                         --network coapnet \
+                        --volumes-from jenkins \
                         -e COAP_HOST=mock-coap \
-                        -e CI=true \
                         -e PYTHONUNBUFFERED=1 \
-                        -v "${env.WORKSPACE}:/workspace" \
-                        -w /workspace \
+                        -e CI=true \
+                        -w /var/jenkins_home/workspace/${JOB_NAME} \
                         python:3.10 bash -c "
-                            echo 'Checking mounted workspace:' && ls -al /workspace && \
-                            pip install --upgrade pip && \
-                            pip install -r /workspace/requirements.txt && \
-                            mkdir -p /workspace/reports && \
-                            pytest --junitxml=/workspace/reports/junit.xml \
-                                   --html=/workspace/reports/report.html \
+                            pip install --upgrade pip &&
+                            pip install -r requirements.txt &&
+                            mkdir -p reports &&
+                            pytest --junitxml=reports/junit.xml \
+                                   --html=reports/report.html \
                                    --self-contained-html \
                                    -v
                         "
