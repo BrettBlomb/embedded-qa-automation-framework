@@ -35,23 +35,23 @@ pipeline {
 
                     echo "Starting REST mock..."
                     docker run -d --name mock-rest \
-                        -p 8000:8000 \
                         --network coapnet \
+                        -p 8000:8000 \
                         -v "$WORKSPACE/mock_servers:/app" \
                         python:3.10 bash -c "pip install flask && python /app/mock_rest_server.py"
 
-                    echo "Starting CoAP mock..."
+                    echo 'Starting CoAP mock...'
                     docker run -d --name mock-coap \
-                        -p 5683:5683/udp \
                         --network coapnet \
+                        -p 5683:5683/udp \
                         -v "$WORKSPACE/mock_servers:/app" \
                         python:3.10 bash -c "pip install aiocoap && python /app/mock_coap_server.py"
 
                     echo "Starting Selenium Standalone Chrome..."
                     docker run -d --name selenium-standalone \
+                        --network coapnet \
                         -p 4444:4444 \
                         --shm-size=2g \
-                        --network coapnet \
                         selenium/standalone-chrome:latest
                 """
 
@@ -72,30 +72,22 @@ pipeline {
         stage('Run Tests Inside Docker') {
             steps {
                 sh """
-                    echo '===== DEBUG: Jenkins WORKSPACE ====='
-                    echo "HOST WORKSPACE: $WORKSPACE"
-                    ls -al "$WORKSPACE"
-
-                    echo '===== STARTING TEST CONTAINER WITH DEBUG ====='
+                    echo '=== Running tests inside isolated container ==='
 
                     docker run --rm \
                         --network coapnet \
                         -e COAP_HOST=mock-coap \
                         -e CI=true \
                         -e PYTHONUNBUFFERED=1 \
-                        -v "$WORKSPACE:/workspace" \
+                        -v "/var/jenkins_home/workspace/embedded-qa-automation-framework:/workspace" \
                         -w /workspace \
                         python:3.10 bash -c "
-                            echo '--- INSIDE CONTAINER DEBUG ---' && \
-                            echo 'pwd:' && pwd && \
-                            echo 'ls -al (current dir):' && ls -al && \
-                            echo 'ls -al /workspace:' && ls -al /workspace && \
-                            echo 'Checking for requirements.txt:' && ls -al requirements.txt && \
+                            echo 'Checking mounted workspace:' && ls -al /workspace && \
                             pip install --upgrade pip && \
-                            pip install -r requirements.txt && \
-                            mkdir -p reports && \
-                            pytest --junitxml=reports/junit.xml \
-                                   --html=reports/report.html \
+                            pip install -r /workspace/requirements.txt && \
+                            mkdir -p /workspace/reports && \
+                            pytest --junitxml=/workspace/reports/junit.xml \
+                                   --html=/workspace/reports/report.html \
                                    --self-contained-html \
                                    -v
                         "
