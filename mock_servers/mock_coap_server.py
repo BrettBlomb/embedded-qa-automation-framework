@@ -26,8 +26,8 @@ async def main():
                       resource.WKCResource(root.get_resources_as_linkheader))
     root.add_resource(('status',), StatusResource())
 
-    # Bind to :: (IPv6) which also serves IPv4 on most stacks
-    await Context.create_server_context(root, bind=('::', COAP_PORT))
+    # Bind to IPv4 (required for Docker; avoids IPv6 ResolutionError)
+    await Context.create_server_context(root, bind=('0.0.0.0', COAP_PORT))
 
     # Keep running forever
     await asyncio.get_running_loop().create_future()
