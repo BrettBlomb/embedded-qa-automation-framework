@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent {
+        label 'built-in'
+    }
 
     environment {
         PYTHONUNBUFFERED = "1"
@@ -51,7 +53,6 @@ pipeline {
                         selenium/standalone-chrome:latest
                 """
 
-                // Wait for Selenium to be ready
                 sh """
                     echo 'Waiting for Selenium WebDriver...'
                     for i in {1..20}; do
