@@ -15,6 +15,22 @@ pipeline {
             }
         }
 
+        /* 🔍 NEW DEBUG STAGE — SHOW REAL WORKSPACE PATH */
+        stage('Find Actual Workspace Path') {
+            steps {
+                sh """
+                    echo '=== CURRENT JENKINS WORKSPACE ==='
+                    pwd
+
+                    echo '=== CONTENTS OF WORKSPACE ==='
+                    ls -al
+
+                    echo '=== FULL TREE (2 levels deep) ==='
+                    find . -maxdepth 2 -type f -print
+                """
+            }
+        }
+
         stage('Setup Python') {
             steps {
                 sh """
@@ -79,7 +95,7 @@ pipeline {
                         -e COAP_HOST=mock-coap \
                         -e CI=true \
                         -e PYTHONUNBUFFERED=1 \
-                        -v "/var/jenkins_home/workspace/embedded-qa-automation-framework:/workspace" \
+                        -v "$WORKSPACE:/workspace" \
                         -w /workspace \
                         python:3.10 bash -c "
                             echo 'Checking mounted workspace:' && ls -al /workspace && \
