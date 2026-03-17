@@ -32,7 +32,7 @@ pipeline {
                     echo "Creating CoAP mock server container..."
                     docker create --name mock-coap --network coapnet \
                         -p 5683:5683/udp \
-                        python:3.10 bash -c "pip install aiocoap && python /app/mock_coap_server.py"
+                        python:3.10 bash -c 'pip install aiocoap && python /app/mock_coap_server.py'
 
                     echo "Copying mock server files to CoAP container..."
                     docker cp mock_servers/. mock-coap:/app/
@@ -43,7 +43,7 @@ pipeline {
                     echo "Creating REST mock server container..."
                     docker create --name mock-rest --network coapnet \
                         -p 8000:8000 \
-                        python:3.10 bash -c "pip install flask && python /app/mock_rest_server.py"
+                        python:3.10 bash -c 'pip install flask && python /app/mock_rest_server.py'
 
                     echo "Copying mock server files to REST container..."
                     docker cp mock_servers/. mock-rest:/app/
