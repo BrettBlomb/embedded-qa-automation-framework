@@ -28,7 +28,7 @@ pipeline {
             steps {
                 sh '''
                     echo "Cleaning old containers..."
-                    docker rm -f mock-coap mock-rest selenium-standalone || true
+                    docker rm -f mock-coap mock-rest selenium-standalone test-runner || true
 
                     echo "Starting CoAP mock server..."
                     docker run -d --name mock-coap --network coapnet \
@@ -78,25 +78,31 @@ pipeline {
             }
         }
 
-        stage('Run Tests Inside Docker') {
+        stage('Run Tests') {
             steps {
                 sh '''
-                    echo "Running tests in isolated container on coapnet..."
-
-                    docker run --rm --network coapnet \
+                    echo "Creating test runner container..."
+                    docker create --name test-runner --network coapnet \
                         -e COAP_HOST=mock-coap \
+                        -e SELENIUM_REMOTE_URL=http://selenium-standalone:4444/wd/hub \
                         -e CI=true \
                         -e PYTHONUNBUFFERED=1 \
-                        -v "$WORKSPACE:/workspace" \
-                        -w /workspace \
                         python:3.10 bash -c "
-                            echo 'Checking mapped workspace:' &&
-                            ls -al /workspace &&
+                            cd /workspace &&
                             pip install --upgrade pip &&
                             pip install -r requirements.txt &&
                             mkdir -p reports &&
                             pytest --junitxml=reports/junit.xml --html=reports/report.html --self-contained-html -v
                         "
+
+                    echo "Copying workspace files into container..."
+                    docker cp . test-runner:/workspace
+
+                    echo "Running tests..."
+                    docker start -a test-runner
+
+                    echo "Copying reports back..."
+                    docker cp test-runner:/workspace/reports ./reports || true
                 '''
             }
         }
@@ -107,7 +113,7 @@ pipeline {
         always {
             echo "Cleaning up containers..."
             sh '''
-                docker rm -f mock-coap mock-rest selenium-standalone || true
+                docker rm -f mock-coap mock-rest selenium-standalone test-runner || true
             '''
             junit 'reports/junit.xml'
             archiveArtifacts artifacts: 'reports/**/*'
