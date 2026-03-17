@@ -112,6 +112,9 @@ pipeline {
             junit 'reports/junit.xml'
             archiveArtifacts artifacts: 'reports/**/*'
             publishHTML([
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
                 reportDir: 'reports',
                 reportFiles: 'report.html',
                 reportName: 'Test Report'
