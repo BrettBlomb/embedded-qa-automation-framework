@@ -46,6 +46,24 @@ pipeline {
                     docker run -d --name selenium-standalone --network coapnet \
                         -p 4444:4444 --shm-size=2g selenium/standalone-chrome:latest
                 '''
+
+                sh '''
+                    echo "Waiting for CoAP server to be ready..."
+                    sleep 5
+                    echo "CoAP server should be ready"
+                '''
+
+                sh '''
+                    echo "Waiting for Selenium WebDriver..."
+                    for i in {1..20}; do
+                        if curl -s http://127.0.0.1:4444/wd/hub/status | grep -q '"ready":true'; then
+                            echo "Selenium is ready!"
+                            break
+                        fi
+                        echo "Still waiting..."
+                        sleep 2
+                    done
+                '''
             }
         }
 
